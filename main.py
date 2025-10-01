@@ -1,37 +1,32 @@
 import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher
-from aiogram.types import Update
+from aiogram.types import Message
+from aiogram.filters import CommandStart
+from aiogram.utils.markdown import hbold
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from config import Config
-from handlers import router
+from handlers import router  # sizning bot handlers
 
-async def handle(request: web.Request):
-    """Telegramdan kelgan yangilanishlarni qabul qilish"""
-    data = await request.json()
-    update = Update(**data)
-    dp: Dispatcher = request.app['dp']
-    await dp.process_update(update)
-    return web.Response()
-
-async def on_startup(app: web.Application):
-    bot: Bot = app['bot']
-    await bot.delete_webhook()
+async def on_startup(bot: Bot):
     await bot.set_webhook(f"{Config.WEBHOOK_URL}{Config.WEBHOOK_PATH}")
     logging.info("Webhook o'rnatildi!")
 
-async def create_app():
-    logging.basicConfig(level=logging.INFO)
-    bot = Bot(token=Config.API_TOKEN)
-    dp = Dispatcher(bot=bot, webhook=True)  # webhook parametrini True qilib belgilash
+def main():
+    dp = Dispatcher()
     dp.include_router(router)
+    dp.startup.register(on_startup)
+
+    bot = Bot(token=Config.API_TOKEN)
 
     app = web.Application()
-    app['bot'] = bot
-    app['dp'] = dp
-    app.router.add_post(Config.WEBHOOK_PATH, handle)
-    app.on_startup.append(on_startup)
-    return app
+    handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+    handler.register(app, path=Config.WEBHOOK_PATH)
+
+    setup_application(app, dp, bot=bot)
+
+    logging.basicConfig(level=logging.INFO)
+    web.run_app(app, host="0.0.0.0", port=Config.PORT)
 
 if __name__ == "__main__":
-    app = create_app()
-    web.run_app(app, host="0.0.0.0", port=Config.PORT)
+    main()
