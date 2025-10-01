@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher
@@ -7,23 +6,23 @@ from config import Config
 from handlers import router
 
 async def handle(request: web.Request):
+    """Telegramdan kelgan yangilanishlarni qabul qilish"""
     data = await request.json()
     update = Update(**data)
-    dp = request.app['dp']
-    dp.update_queue.put_nowait(update)
-
+    dp: Dispatcher = request.app['dp']
+    await dp.process_update(update)
     return web.Response()
 
 async def on_startup(app: web.Application):
     bot: Bot = app['bot']
     await bot.delete_webhook()
     await bot.set_webhook(f"{Config.WEBHOOK_URL}{Config.WEBHOOK_PATH}")
-    logging.info("Webhook set!")
+    logging.info("Webhook o'rnatildi!")
 
 async def create_app():
     logging.basicConfig(level=logging.INFO)
     bot = Bot(token=Config.API_TOKEN)
-    dp = Dispatcher(bot=bot)
+    dp = Dispatcher(bot=bot, webhook=True)  # webhook parametrini True qilib belgilash
     dp.include_router(router)
 
     app = web.Application()
@@ -31,9 +30,8 @@ async def create_app():
     app['dp'] = dp
     app.router.add_post(Config.WEBHOOK_PATH, handle)
     app.on_startup.append(on_startup)
-
     return app
 
 if __name__ == "__main__":
-    app = asyncio.run(create_app())
+    app = create_app()
     web.run_app(app, host="0.0.0.0", port=Config.PORT)
