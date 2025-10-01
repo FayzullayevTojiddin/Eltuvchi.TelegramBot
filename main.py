@@ -1,32 +1,36 @@
-from aiogram import Bot, Dispatcher
 from aiohttp import web
+from aiogram import Bot, Dispatcher
 from config import Config
 from handlers import router
-import asyncio
 import logging
-
-WEBHOOK_URL = f"{Config.WEBHOOK_URL}{Config.WEBHOOK_PATH}"
-
-async def on_startup(bot: Bot):
-    await bot.delete_webhook()
-    await bot.set_webhook(WEBHOOK_URL)
-    logging.info("Webhook Set!")
+import asyncio
 
 async def handle(request: web.Request):
     update = await request.json()
     await request.app['dp'].process_update(update)
     return web.Response()
 
-async def main():
+async def on_startup(app: web.Application):
+    bot: Bot = app['bot']
+    await bot.delete_webhook()
+    await bot.set_webhook(f"{Config.WEBHOOK_URL}{Config.WEBHOOK_PATH}")
+    logging.info("Webhook set!")
+
+async def create_app():
     logging.basicConfig(level=logging.INFO)
     bot = Bot(token=Config.API_TOKEN)
-    dp = Dispatcher()
+    dp = Dispatcher(bot=bot)
     dp.include_router(router)
+
     app = web.Application()
+    app['bot'] = bot
     app['dp'] = dp
     app.router.add_post(Config.WEBHOOK_PATH, handle)
-    await on_startup(bot)
-    web.run_app(app, host="0.0.0.0", port=Config.PORT)
+
+    # Startup event
+    app.on_startup.append(on_startup)
+
+    return app
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    web.run_app(create_app(), host="0.0.0.0", port=Config.PORT)
