@@ -9,8 +9,9 @@ from handlers import router
 async def handle(request: web.Request):
     data = await request.json()
     update = Update(**data)
-    dp: Dispatcher = request.app['dp']
-    dp.feed_update(update)  # Aiogram 3.x da synchronous, await kerak emas
+    dp = request.app['dp']
+    dp.update_queue.put_nowait(update)
+
     return web.Response()
 
 async def on_startup(app: web.Application):
