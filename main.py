@@ -1,13 +1,15 @@
+import asyncio
+import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher
+from aiogram.types import Update
 from config import Config
 from handlers import router
-import logging
-import asyncio
 
 async def handle(request: web.Request):
-    update = await request.json()
-    await request.app['dp'].process_update(update)
+    data = await request.json()
+    update = Update(**data)
+    await request.app['dp'].feed_update(update)
     return web.Response()
 
 async def on_startup(app: web.Application):
@@ -26,8 +28,6 @@ async def create_app():
     app['bot'] = bot
     app['dp'] = dp
     app.router.add_post(Config.WEBHOOK_PATH, handle)
-
-    # Startup event
     app.on_startup.append(on_startup)
 
     return app
